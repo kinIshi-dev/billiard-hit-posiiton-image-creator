@@ -13,7 +13,6 @@
   // 撞点 (ボール半径を1とした相対座標。yは上方向が正)
   const hit = { x: 0, y: 0 };
   // パワー (1〜5の5段階)
-  const POWER_LABELS = ["最弱", "ちょっと弱い", "普通", "ちょっと強い", "フルパワー"];
   const POWER_COLORS = ["#22c55e", "#84cc16", "#eab308", "#f97316", "#ef4444"];
   const DEFAULT_POWER = 3;
   let power = DEFAULT_POWER;
@@ -63,15 +62,15 @@
       c.stroke();
     }
 
-    // 現在のレベル名 (ゲージ右端に右揃え)
+    // 現在のレベル数字
     c.save();
     c.shadowColor = "rgba(0,0,0,0.5)";
     c.shadowBlur = size * 0.006;
     c.fillStyle = "#ffffff";
-    c.textAlign = "right";
+    c.textAlign = "center";
     c.textBaseline = "middle";
-    c.font = `700 ${Math.round(size * 0.042)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
-    c.fillText(POWER_LABELS[pw - 1], g.x + g.w, g.y - size * 0.05);
+    c.font = `700 ${Math.round(size * 0.048)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
+    c.fillText(String(pw), g.x + g.w / 2, g.y - size * 0.05);
     c.restore();
 
     c.fillStyle = "rgba(255,255,255,0.85)";
@@ -214,7 +213,7 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawScene(ctx, size, hit, power);
-    readout.textContent = `${describe(hit)} ・ パワー: ${POWER_LABELS[power - 1]}`;
+    readout.textContent = `${describe(hit)} ・ パワー ${power}/5`;
   }
 
   function setHitFromEvent(ev) {
