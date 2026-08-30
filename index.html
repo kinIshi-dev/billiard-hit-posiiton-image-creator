@@ -23,9 +23,13 @@
     <div class="readout" id="readout" aria-live="polite">中央</div>
 
     <div class="controls">
+      <button type="button" id="copy-btn" class="btn btn-primary">画像をコピー</button>
+      <button type="button" id="share-btn" class="btn btn-primary">共有</button>
+      <button type="button" id="save-btn" class="btn btn-secondary">画像を保存</button>
       <button type="button" id="reset-btn" class="btn btn-secondary">リセット</button>
-      <button type="button" id="save-btn" class="btn btn-primary">画像を保存</button>
     </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <p class="note">点線の円はミスキューしにくい目安 (中心から約50%) です。</p>
   </main>

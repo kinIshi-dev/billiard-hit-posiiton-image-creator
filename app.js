@@ -6,6 +6,9 @@
   const readout = document.getElementById("readout");
   const resetBtn = document.getElementById("reset-btn");
   const saveBtn = document.getElementById("save-btn");
+  const copyBtn = document.getElementById("copy-btn");
+  const shareBtn = document.getElementById("share-btn");
+  const toast = document.getElementById("toast");
 
   // 撞点 (ボール半径を1とした相対座標。yは上方向が正)
   const hit = { x: 0, y: 0 };
@@ -210,9 +213,34 @@
     render();
   });
 
-  // ===== 画像保存 =====
+  // ===== 画像の書き出し (保存 / コピー / 共有) =====
 
   const EXPORT_SIZE = 1080;
+
+  let toastTimer = 0;
+  function showToast(message) {
+    toast.textContent = message;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+
+  function makeExportCanvas() {
+    const out = document.createElement("canvas");
+    out.width = EXPORT_SIZE;
+    out.height = EXPORT_SIZE;
+    drawScene(out.getContext("2d"), EXPORT_SIZE, hit);
+    return out;
+  }
+
+  function exportBlob() {
+    return new Promise((resolve, reject) => {
+      makeExportCanvas().toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("PNGの生成に失敗しました"));
+      }, "image/png");
+    });
+  }
 
   function buildFilename(point) {
     const xPct = Math.round(point.x * 100);
@@ -227,16 +255,9 @@
     return parts.join("_") + ".png";
   }
 
-  saveBtn.addEventListener("click", () => {
-    const out = document.createElement("canvas");
-    out.width = EXPORT_SIZE;
-    out.height = EXPORT_SIZE;
-    const octx = out.getContext("2d");
-
-    drawScene(octx, EXPORT_SIZE, hit);
-
-    out.toBlob((blob) => {
-      if (!blob) return;
+  saveBtn.addEventListener("click", async () => {
+    try {
+      const blob = await exportBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -245,8 +266,44 @@
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-    }, "image/png");
+    } catch {
+      showToast("保存できませんでした");
+    }
   });
+
+  // クリップボードへコピー。
+  // Safariはユーザー操作中に同期的にClipboardItemを作る必要があるため、
+  // blobのPromiseをそのまま渡す。
+  if (navigator.clipboard && window.ClipboardItem) {
+    copyBtn.addEventListener("click", () => {
+      const item = new ClipboardItem({ "image/png": exportBlob() });
+      navigator.clipboard.write([item]).then(
+        () => showToast("画像をコピーしました"),
+        () => showToast("コピーできませんでした")
+      );
+    });
+  } else {
+    copyBtn.classList.add("hidden");
+  }
+
+  // 共有シート (LINEやNotionへ直接渡す)
+  if (navigator.share) {
+    shareBtn.addEventListener("click", async () => {
+      try {
+        const blob = await exportBlob();
+        const file = new File([blob], buildFilename(hit), { type: "image/png" });
+        if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+          showToast("この端末では画像の共有に対応していません");
+          return;
+        }
+        await navigator.share({ files: [file] });
+      } catch (err) {
+        if (err && err.name !== "AbortError") showToast("共有できませんでした");
+      }
+    });
+  } else {
+    shareBtn.classList.add("hidden");
+  }
 
   // ===== 初期化 =====
 
