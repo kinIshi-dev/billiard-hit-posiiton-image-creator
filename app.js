@@ -12,9 +12,11 @@
 
   // 撞点 (ボール半径を1とした相対座標。yは上方向が正)
   const hit = { x: 0, y: 0 };
-  // パワー (0〜1)
-  let power = 0.5;
-  const DEFAULT_POWER = 0.5;
+  // パワー (1〜5の5段階)
+  const POWER_LABELS = ["最弱", "ちょっと弱い", "普通", "ちょっと強い", "フルパワー"];
+  const POWER_COLORS = ["#22c55e", "#84cc16", "#eab308", "#f97316", "#ef4444"];
+  const DEFAULT_POWER = 3;
+  let power = DEFAULT_POWER;
   // ドラッグできる最大オフセット (ボール半径比)
   const MAX_OFFSET = 1;
   // ミスキュー目安の円 (半径比)
@@ -42,62 +44,39 @@
 
   function drawGauge(c, size, pw) {
     const g = layout(size).gauge;
-    const corner = g.w / 2;
+    const gap = size * 0.012;
+    const segH = (g.h - gap * 4) / 5;
+    const corner = Math.min(size * 0.014, segH / 2, g.w / 2);
     const lineW = Math.max(1, size * 0.003);
 
-    // トラック背景
-    c.fillStyle = "rgba(5, 20, 12, 0.55)";
-    roundRectPath(c, g.x, g.y, g.w, g.h, corner);
-    c.fill();
-
-    // フィル (下=弱=緑 → 上=強=赤)
-    const level = g.y + g.h * (1 - pw);
-    const grad = c.createLinearGradient(0, g.y, 0, g.y + g.h);
-    grad.addColorStop(0, "#ef4444");
-    grad.addColorStop(0.5, "#eab308");
-    grad.addColorStop(1, "#22c55e");
-    c.save();
-    roundRectPath(c, g.x, g.y, g.w, g.h, corner);
-    c.clip();
-    c.fillStyle = grad;
-    c.fillRect(g.x, level, g.w, g.y + g.h - level);
-
-    // 目盛り (25/50/75%)
-    c.strokeStyle = "rgba(255,255,255,0.35)";
-    c.lineWidth = lineW;
-    for (const f of [0.25, 0.5, 0.75]) {
-      const ty = g.y + g.h * f;
-      c.beginPath();
-      c.moveTo(g.x + g.w * 0.2, ty);
-      c.lineTo(g.x + g.w * 0.8, ty);
+    // 5段のセグメント (上=レベル5=フルパワー)
+    for (let i = 0; i < 5; i++) {
+      const segLevel = 5 - i;
+      const y = g.y + i * (segH + gap);
+      const active = segLevel <= pw;
+      roundRectPath(c, g.x, y, g.w, segH, corner);
+      c.fillStyle = active ? POWER_COLORS[segLevel - 1] : "rgba(5, 20, 12, 0.5)";
+      c.fill();
+      c.strokeStyle = segLevel === pw ? "#ffffff" : "rgba(255,255,255,0.45)";
+      c.lineWidth = segLevel === pw ? lineW * 2.2 : lineW;
+      roundRectPath(c, g.x, y, g.w, segH, corner);
       c.stroke();
     }
-    c.restore();
 
-    // トラック枠
-    c.strokeStyle = "rgba(255,255,255,0.75)";
-    c.lineWidth = lineW;
-    roundRectPath(c, g.x, g.y, g.w, g.h, corner);
-    c.stroke();
-
-    // ハンドル
-    const hy = Math.min(g.y + g.h - corner, Math.max(g.y + corner, level));
-    const hw = size * 0.012;
+    // 現在のレベル名 (ゲージ右端に右揃え)
     c.save();
-    c.shadowColor = "rgba(0,0,0,0.4)";
-    c.shadowBlur = size * 0.008;
+    c.shadowColor = "rgba(0,0,0,0.5)";
+    c.shadowBlur = size * 0.006;
     c.fillStyle = "#ffffff";
-    roundRectPath(c, g.x - size * 0.01, hy - hw / 2, g.w + size * 0.02, hw, hw / 2);
-    c.fill();
+    c.textAlign = "right";
+    c.textBaseline = "middle";
+    c.font = `700 ${Math.round(size * 0.042)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
+    c.fillText(POWER_LABELS[pw - 1], g.x + g.w, g.y - size * 0.05);
     c.restore();
 
-    // パーセント表示と ラベル
-    c.fillStyle = "#ffffff";
+    c.fillStyle = "rgba(255,255,255,0.85)";
     c.textAlign = "center";
     c.textBaseline = "middle";
-    c.font = `700 ${Math.round(size * 0.045)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
-    c.fillText(`${Math.round(pw * 100)}`, g.x + g.w / 2, g.y - size * 0.05);
-    c.fillStyle = "rgba(255,255,255,0.85)";
     c.font = `600 ${Math.round(size * 0.028)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
     c.fillText("パワー", g.x + g.w / 2, g.y + g.h + size * 0.045);
   }
@@ -235,7 +214,7 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawScene(ctx, size, hit, power);
-    readout.textContent = `${describe(hit)} ・ パワー ${Math.round(power * 100)}%`;
+    readout.textContent = `${describe(hit)} ・ パワー: ${POWER_LABELS[power - 1]}`;
   }
 
   function setHitFromEvent(ev) {
@@ -256,8 +235,9 @@
   function setPowerFromEvent(ev) {
     const rect = canvas.getBoundingClientRect();
     const g = layout(rect.width).gauge;
-    const y = ev.clientY - rect.top;
-    power = Math.min(1, Math.max(0, 1 - (y - g.y) / g.h));
+    // 下からの割合 → 1〜5のレベル
+    const f = 1 - (ev.clientY - rect.top - g.y) / g.h;
+    power = Math.min(5, Math.max(1, Math.ceil(f * 5)));
     render();
   }
 
@@ -284,10 +264,9 @@
   });
 
   // キーボード操作 (デスクトップ向け)
-  // 矢印: 撞点移動 / +・-: パワー調整 (Shiftで大きく)
+  // 矢印: 撞点移動 (Shiftで大きく) / +・-: パワー調整
   window.addEventListener("keydown", (ev) => {
     const step = ev.shiftKey ? 0.1 : 0.02;
-    const powerStep = ev.shiftKey ? 0.1 : 0.05;
     let handled = true;
     switch (ev.key) {
       case "ArrowLeft": hit.x -= step; break;
@@ -295,9 +274,9 @@
       case "ArrowUp": hit.y += step; break;
       case "ArrowDown": hit.y -= step; break;
       case "+":
-      case "=": power = Math.min(1, power + powerStep); break;
+      case "=": power = Math.min(5, power + 1); break;
       case "-":
-      case "_": power = Math.max(0, power - powerStep); break;
+      case "_": power = Math.max(1, power - 1); break;
       default: handled = false;
     }
     if (handled) {
@@ -359,7 +338,7 @@
       if (xPct !== 0) parts.push(`${xPct > 0 ? "R" : "L"}${Math.abs(xPct)}`);
       if (yPct !== 0) parts.push(`${yPct > 0 ? "U" : "D"}${Math.abs(yPct)}`);
     }
-    parts.push(`P${Math.round(pw * 100)}`);
+    parts.push(`P${pw}`);
     return parts.join("_") + ".png";
   }
 
