@@ -7,18 +7,26 @@
   <meta name="theme-color" content="#14532d">
   <title>撞点メーカー</title>
   <!-- style.css / app.js を変更したら ?v= の数字を上げること (モバイルのキャッシュ対策) -->
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='white' stroke='%23ccc' stroke-width='2'/><path d='M50 4v92M4 50h92' stroke='%23bbb' stroke-width='3'/><circle cx='50' cy='62' r='9' fill='%232b7de9'/></svg>">
 </head>
 <body>
   <header class="app-header">
     <h1>撞点メーカー</h1>
-    <p class="subtitle">ボールをタップして撞点、右のバーでパワーを調整</p>
+    <p class="subtitle" id="subtitle">ボールをタップして撞点、右のバーでパワーを調整</p>
   </header>
 
   <main class="app-main">
-    <div class="canvas-wrap">
+    <nav class="tabs" aria-label="モード切り替え">
+      <button type="button" id="tab-single" class="tab active">シングル</button>
+      <button type="button" id="tab-multi" class="tab">マルチ</button>
+    </nav>
+
+    <div class="canvas-wrap" id="panel-single">
       <canvas id="ball-canvas" aria-label="手玉の撞点エディタ"></canvas>
+    </div>
+    <div class="canvas-wrap hidden-panel" id="panel-multi">
+      <canvas id="multi-canvas" aria-label="複数撞点エディタ"></canvas>
     </div>
 
     <div class="readout" id="readout" aria-live="polite">中央</div>
@@ -27,6 +35,7 @@
       <button type="button" id="copy-btn" class="btn btn-primary">画像をコピー</button>
       <button type="button" id="share-btn" class="btn btn-primary">共有</button>
       <button type="button" id="save-btn" class="btn btn-secondary">画像を保存</button>
+      <button type="button" id="undo-btn" class="btn btn-secondary hidden">1つ戻す</button>
       <button type="button" id="reset-btn" class="btn btn-secondary">リセット</button>
     </div>
 
@@ -37,6 +46,6 @@
     <small>撞点メーカー — Billiard Hit Position Image Creator</small>
   </footer>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
