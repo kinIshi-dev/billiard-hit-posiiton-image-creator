@@ -233,13 +233,15 @@
     return out;
   }
 
-  function exportBlob() {
-    return new Promise((resolve, reject) => {
-      makeExportCanvas().toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error("PNGの生成に失敗しました"));
-      }, "image/png");
-    });
+  // toBlob(非同期)だとWebKit系でユーザー操作の有効期限が切れ、
+  // clipboard.write / navigator.share がNotAllowedErrorになるため、
+  // toDataURLで同期的にBlobを作る。
+  function exportBlobSync() {
+    const b64 = makeExportCanvas().toDataURL("image/png").split(",")[1];
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: "image/png" });
   }
 
   function buildFilename(point) {
@@ -255,10 +257,9 @@
     return parts.join("_") + ".png";
   }
 
-  saveBtn.addEventListener("click", async () => {
+  saveBtn.addEventListener("click", () => {
     try {
-      const blob = await exportBlob();
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(exportBlobSync());
       const a = document.createElement("a");
       a.href = url;
       a.download = buildFilename(hit);
@@ -271,35 +272,43 @@
     }
   });
 
-  // クリップボードへコピー。
-  // Safariはユーザー操作中に同期的にClipboardItemを作る必要があるため、
-  // blobのPromiseをそのまま渡す。
+  // クリップボードへコピー。タップと同じ同期処理内でwriteまで呼ぶこと
+  // (awaitを挟むとWebKitでユーザー操作の有効期限が切れる)。
   if (navigator.clipboard && window.ClipboardItem) {
     copyBtn.addEventListener("click", () => {
-      const item = new ClipboardItem({ "image/png": exportBlob() });
-      navigator.clipboard.write([item]).then(
-        () => showToast("画像をコピーしました"),
-        () => showToast("コピーできませんでした")
-      );
+      try {
+        const item = new ClipboardItem({ "image/png": exportBlobSync() });
+        navigator.clipboard.write([item]).then(
+          () => showToast("画像をコピーしました"),
+          (err) => showToast(`コピーできませんでした (${err.name})`)
+        );
+      } catch (err) {
+        showToast(`コピーできませんでした (${err.name})`);
+      }
     });
   } else {
     copyBtn.classList.add("hidden");
   }
 
-  // 共有シート (LINEやNotionへ直接渡す)
+  // 共有シート (LINEやNotionへ直接渡す)。こちらも同期的に呼ぶ。
   if (navigator.share) {
-    shareBtn.addEventListener("click", async () => {
+    shareBtn.addEventListener("click", () => {
+      let file;
       try {
-        const blob = await exportBlob();
-        const file = new File([blob], buildFilename(hit), { type: "image/png" });
-        if (navigator.canShare && !navigator.canShare({ files: [file] })) {
-          showToast("この端末では画像の共有に対応していません");
-          return;
-        }
-        await navigator.share({ files: [file] });
+        file = new File([exportBlobSync()], buildFilename(hit), { type: "image/png" });
       } catch (err) {
-        if (err && err.name !== "AbortError") showToast("共有できませんでした");
+        showToast(`共有できませんでした (${err.name})`);
+        return;
       }
+      if (navigator.canShare && !navigator.canShare({ files: [file] })) {
+        showToast("この端末では画像の共有に対応していません");
+        return;
+      }
+      navigator.share({ files: [file] }).catch((err) => {
+        if (err && err.name !== "AbortError") {
+          showToast(`共有できませんでした (${err.name})`);
+        }
+      });
     });
   } else {
     shareBtn.classList.add("hidden");
