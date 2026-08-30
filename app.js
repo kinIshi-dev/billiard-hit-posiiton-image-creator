@@ -12,15 +12,98 @@
 
   // 撞点 (ボール半径を1とした相対座標。yは上方向が正)
   const hit = { x: 0, y: 0 };
+  // パワー (0〜1)
+  let power = 0.5;
+  const DEFAULT_POWER = 0.5;
   // ドラッグできる最大オフセット (ボール半径比)
   const MAX_OFFSET = 1;
   // ミスキュー目安の円 (半径比)
   const MISCUE_LIMIT = 0.5;
 
-  function drawScene(c, size, point) {
-    const cx = size / 2;
-    const cy = size / 2;
-    const R = size * 0.42;
+  // キャンバス内の配置 (正方形サイズ基準)
+  function layout(size) {
+    return {
+      cx: size * 0.44,
+      cy: size * 0.5,
+      R: size * 0.38,
+      gauge: { x: size * 0.865, y: size * 0.12, w: size * 0.07, h: size * 0.76 },
+    };
+  }
+
+  function roundRectPath(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function drawGauge(c, size, pw) {
+    const g = layout(size).gauge;
+    const corner = g.w / 2;
+    const lineW = Math.max(1, size * 0.003);
+
+    // トラック背景
+    c.fillStyle = "rgba(5, 20, 12, 0.55)";
+    roundRectPath(c, g.x, g.y, g.w, g.h, corner);
+    c.fill();
+
+    // フィル (下=弱=緑 → 上=強=赤)
+    const level = g.y + g.h * (1 - pw);
+    const grad = c.createLinearGradient(0, g.y, 0, g.y + g.h);
+    grad.addColorStop(0, "#ef4444");
+    grad.addColorStop(0.5, "#eab308");
+    grad.addColorStop(1, "#22c55e");
+    c.save();
+    roundRectPath(c, g.x, g.y, g.w, g.h, corner);
+    c.clip();
+    c.fillStyle = grad;
+    c.fillRect(g.x, level, g.w, g.y + g.h - level);
+
+    // 目盛り (25/50/75%)
+    c.strokeStyle = "rgba(255,255,255,0.35)";
+    c.lineWidth = lineW;
+    for (const f of [0.25, 0.5, 0.75]) {
+      const ty = g.y + g.h * f;
+      c.beginPath();
+      c.moveTo(g.x + g.w * 0.2, ty);
+      c.lineTo(g.x + g.w * 0.8, ty);
+      c.stroke();
+    }
+    c.restore();
+
+    // トラック枠
+    c.strokeStyle = "rgba(255,255,255,0.75)";
+    c.lineWidth = lineW;
+    roundRectPath(c, g.x, g.y, g.w, g.h, corner);
+    c.stroke();
+
+    // ハンドル
+    const hy = Math.min(g.y + g.h - corner, Math.max(g.y + corner, level));
+    const hw = size * 0.012;
+    c.save();
+    c.shadowColor = "rgba(0,0,0,0.4)";
+    c.shadowBlur = size * 0.008;
+    c.fillStyle = "#ffffff";
+    roundRectPath(c, g.x - size * 0.01, hy - hw / 2, g.w + size * 0.02, hw, hw / 2);
+    c.fill();
+    c.restore();
+
+    // パーセント表示と ラベル
+    c.fillStyle = "#ffffff";
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    c.font = `700 ${Math.round(size * 0.045)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
+    c.fillText(`${Math.round(pw * 100)}`, g.x + g.w / 2, g.y - size * 0.05);
+    c.fillStyle = "rgba(255,255,255,0.85)";
+    c.font = `600 ${Math.round(size * 0.028)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
+    c.fillText("パワー", g.x + g.w / 2, g.y + g.h + size * 0.045);
+  }
+
+  function drawScene(c, size, point, pw) {
+    const { cx, cy, R } = layout(size);
 
     // 背景 (ラシャ)
     const felt = c.createRadialGradient(cx, cy * 0.8, size * 0.1, cx, cy, size * 0.85);
@@ -102,6 +185,9 @@
 
     c.restore();
 
+    // パワーインジケーター
+    drawGauge(c, size, pw);
+
     // 撞点マーカー
     const px = cx + point.x * R;
     const py = cy - point.y * R;
@@ -148,16 +234,15 @@
       canvas.height = Math.round(size * dpr);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawScene(ctx, size, hit);
-    readout.textContent = describe(hit);
+    drawScene(ctx, size, hit, power);
+    readout.textContent = `${describe(hit)} ・ パワー ${Math.round(power * 100)}%`;
   }
 
   function setHitFromEvent(ev) {
     const rect = canvas.getBoundingClientRect();
-    const size = rect.width;
-    const R = size * 0.42;
-    let x = (ev.clientX - rect.left - size / 2) / R;
-    let y = -(ev.clientY - rect.top - size / 2) / R;
+    const { cx, cy, R } = layout(rect.width);
+    let x = (ev.clientX - rect.left - cx) / R;
+    let y = -(ev.clientY - rect.top - cy) / R;
     const len = Math.hypot(x, y);
     if (len > MAX_OFFSET) {
       x = (x / len) * MAX_OFFSET;
@@ -168,32 +253,51 @@
     render();
   }
 
-  let dragging = false;
+  function setPowerFromEvent(ev) {
+    const rect = canvas.getBoundingClientRect();
+    const g = layout(rect.width).gauge;
+    const y = ev.clientY - rect.top;
+    power = Math.min(1, Math.max(0, 1 - (y - g.y) / g.h));
+    render();
+  }
+
+  // ドラッグ中の操作対象 (null | "hit" | "power")
+  let dragMode = null;
 
   canvas.addEventListener("pointerdown", (ev) => {
-    dragging = true;
+    const rect = canvas.getBoundingClientRect();
+    const isGauge = ev.clientX - rect.left >= rect.width * 0.8;
+    dragMode = isGauge ? "power" : "hit";
     canvas.setPointerCapture(ev.pointerId);
-    setHitFromEvent(ev);
+    if (dragMode === "power") setPowerFromEvent(ev);
+    else setHitFromEvent(ev);
   });
   canvas.addEventListener("pointermove", (ev) => {
-    if (dragging) setHitFromEvent(ev);
+    if (dragMode === "power") setPowerFromEvent(ev);
+    else if (dragMode === "hit") setHitFromEvent(ev);
   });
   canvas.addEventListener("pointerup", () => {
-    dragging = false;
+    dragMode = null;
   });
   canvas.addEventListener("pointercancel", () => {
-    dragging = false;
+    dragMode = null;
   });
 
   // キーボード操作 (デスクトップ向け)
+  // 矢印: 撞点移動 / +・-: パワー調整 (Shiftで大きく)
   window.addEventListener("keydown", (ev) => {
     const step = ev.shiftKey ? 0.1 : 0.02;
+    const powerStep = ev.shiftKey ? 0.1 : 0.05;
     let handled = true;
     switch (ev.key) {
       case "ArrowLeft": hit.x -= step; break;
       case "ArrowRight": hit.x += step; break;
       case "ArrowUp": hit.y += step; break;
       case "ArrowDown": hit.y -= step; break;
+      case "+":
+      case "=": power = Math.min(1, power + powerStep); break;
+      case "-":
+      case "_": power = Math.max(0, power - powerStep); break;
       default: handled = false;
     }
     if (handled) {
@@ -210,6 +314,7 @@
   resetBtn.addEventListener("click", () => {
     hit.x = 0;
     hit.y = 0;
+    power = DEFAULT_POWER;
     render();
   });
 
@@ -229,7 +334,7 @@
     const out = document.createElement("canvas");
     out.width = EXPORT_SIZE;
     out.height = EXPORT_SIZE;
-    drawScene(out.getContext("2d"), EXPORT_SIZE, hit);
+    drawScene(out.getContext("2d"), EXPORT_SIZE, hit, power);
     return out;
   }
 
@@ -244,7 +349,7 @@
     return new Blob([bytes], { type: "image/png" });
   }
 
-  function buildFilename(point) {
+  function buildFilename(point, pw) {
     const xPct = Math.round(point.x * 100);
     const yPct = Math.round(point.y * 100);
     const parts = ["hitpoint"];
@@ -254,6 +359,7 @@
       if (xPct !== 0) parts.push(`${xPct > 0 ? "R" : "L"}${Math.abs(xPct)}`);
       if (yPct !== 0) parts.push(`${yPct > 0 ? "U" : "D"}${Math.abs(yPct)}`);
     }
+    parts.push(`P${Math.round(pw * 100)}`);
     return parts.join("_") + ".png";
   }
 
@@ -262,7 +368,7 @@
       const url = URL.createObjectURL(exportBlobSync());
       const a = document.createElement("a");
       a.href = url;
-      a.download = buildFilename(hit);
+      a.download = buildFilename(hit, power);
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -295,7 +401,7 @@
     shareBtn.addEventListener("click", () => {
       let file;
       try {
-        file = new File([exportBlobSync()], buildFilename(hit), { type: "image/png" });
+        file = new File([exportBlobSync()], buildFilename(hit, power), { type: "image/png" });
       } catch (err) {
         showToast(`共有できませんでした (${err.name})`);
         return;
