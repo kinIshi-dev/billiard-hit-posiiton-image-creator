@@ -10,21 +10,9 @@
   // 撞点 (ボール半径を1とした相対座標。yは上方向が正)
   const hit = { x: 0, y: 0 };
   // ドラッグできる最大オフセット (ボール半径比)
-  const MAX_OFFSET = 0.8;
+  const MAX_OFFSET = 1;
   // ミスキュー目安の円 (半径比)
   const MISCUE_LIMIT = 0.5;
-
-  // デュラミス(メジャーボール)風の赤い測定ドット。
-  // angle: 中心からの方向(度), dist: 中心からの距離(半径比)
-  const DOTS = [
-    { angle: -55, dist: 0.68 },
-    { angle: 30, dist: 0.82 },
-    { angle: 115, dist: 0.72 },
-    { angle: 185, dist: 0.8 },
-    { angle: 250, dist: 0.7 },
-  ];
-  const DOT_RADIUS = 0.13; // 半径比
-  const DOT_COLOR = "#a3312b";
 
   function drawScene(c, size, point) {
     const cx = size / 2;
@@ -70,29 +58,6 @@
     c.beginPath();
     c.arc(cx, cy, R, 0, Math.PI * 2);
     c.clip();
-
-    // 赤ドット (球面上にあるように、外周ほど半径方向へつぶす)
-    for (const d of DOTS) {
-      const rad = (d.angle * Math.PI) / 180;
-      const dx = Math.cos(rad) * d.dist * R;
-      const dy = Math.sin(rad) * d.dist * R;
-      const squash = Math.sqrt(Math.max(0, 1 - d.dist * d.dist));
-      c.save();
-      c.translate(cx + dx, cy + dy);
-      c.rotate(rad);
-      c.scale(squash, 1);
-      const dotShade = c.createRadialGradient(
-        -DOT_RADIUS * R * 0.3, -DOT_RADIUS * R * 0.3, 0,
-        0, 0, DOT_RADIUS * R
-      );
-      dotShade.addColorStop(0, "#b8453e");
-      dotShade.addColorStop(1, DOT_COLOR);
-      c.fillStyle = dotShade;
-      c.beginPath();
-      c.arc(0, 0, DOT_RADIUS * R, 0, Math.PI * 2);
-      c.fill();
-      c.restore();
-    }
 
     // ガイド (十字線とミスキュー目安円)
     c.strokeStyle = "rgba(30, 41, 59, 0.28)";
@@ -264,22 +229,11 @@
 
   saveBtn.addEventListener("click", () => {
     const out = document.createElement("canvas");
-    // 下部にラベル帯を追加
-    const labelBand = Math.round(EXPORT_SIZE * 0.1);
     out.width = EXPORT_SIZE;
-    out.height = EXPORT_SIZE + labelBand;
+    out.height = EXPORT_SIZE;
     const octx = out.getContext("2d");
 
     drawScene(octx, EXPORT_SIZE, hit);
-
-    // ラベル帯
-    octx.fillStyle = "#0e3019";
-    octx.fillRect(0, EXPORT_SIZE, EXPORT_SIZE, labelBand);
-    octx.fillStyle = "#ffffff";
-    octx.font = `600 ${Math.round(labelBand * 0.42)}px "Hiragino Sans", "Noto Sans JP", sans-serif`;
-    octx.textAlign = "center";
-    octx.textBaseline = "middle";
-    octx.fillText(`撞点: ${describe(hit)}`, EXPORT_SIZE / 2, EXPORT_SIZE + labelBand / 2);
 
     out.toBlob((blob) => {
       if (!blob) return;
