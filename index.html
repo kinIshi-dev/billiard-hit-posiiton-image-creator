@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="ビリヤードの撞点(タップ位置)を作成して画像として保存できるツール">
+  <meta name="theme-color" content="#14532d">
+  <title>撞点メーカー</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='white' stroke='%23ccc' stroke-width='2'/><circle cx='62' cy='36' r='10' fill='%23a3312b'/><circle cx='50' cy='62' r='7' fill='%232b7de9'/></svg>">
+</head>
+<body>
+  <header class="app-header">
+    <h1>撞点メーカー</h1>
+    <p class="subtitle">ボールをタップ / ドラッグして撞点を決めよう</p>
+  </header>
+
+  <main class="app-main">
+    <div class="canvas-wrap">
+      <canvas id="ball-canvas" aria-label="手玉の撞点エディタ"></canvas>
+    </div>
+
+    <div class="readout" id="readout" aria-live="polite">中央</div>
+
+    <div class="controls">
+      <button type="button" id="reset-btn" class="btn btn-secondary">リセット</button>
+      <button type="button" id="save-btn" class="btn btn-primary">画像を保存</button>
+    </div>
+
+    <p class="note">点線の円はミスキューしにくい目安 (中心から約50%) です。</p>
+  </main>
+
+  <footer class="app-footer">
+    <small>撞点メーカー — Billiard Hit Position Image Creator</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
